@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-mcp-info"
+description = "Enables the mcp_info command without any pre-configured scope."
+commands.allow = ["mcp_info"]
+
+[[permission]]
+identifier = "deny-mcp-info"
+description = "Denies the mcp_info command without any pre-configured scope."
+commands.deny = ["mcp_info"]

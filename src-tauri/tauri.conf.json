@@ -1,0 +1,61 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Quirkus",
+  "version": "0.1.0",
+  "identifier": "io.github.kevinyhe.quirkus",
+  "build": {
+    "beforeDevCommand": "npm run dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "npm run build",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Quirkus",
+        "width": 1280,
+        "height": 820,
+        "minWidth": 420,
+        "minHeight": 420
+      }
+    ],
+    "security": {
+      "csp": {
+        "default-src": "'self'",
+        "connect-src": "ipc: http://ipc.localhost",
+        "img-src": "'self' qc: http://qc.localhost data: blob: https:",
+        "media-src": "'self' blob: qc: http://qc.localhost https:",
+        "style-src": "'self' 'unsafe-inline'",
+        "font-src": "'self' data:",
+        "frame-src": "https:",
+        "script-src": "'self' 'wasm-unsafe-eval'",
+        "worker-src": "'self' blob:"
+      }
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "category": "Education",
+    "shortDescription": "Fast desktop app for U of T Quercus and ACORN",
+    "longDescription": "Quirkus: courses, deadlines, files, timetable, and academic history from U of T Quercus and ACORN in one fast window, plus an MCP server for AI assistants. Unofficial; not affiliated with the University of Toronto or Instructure.",
+    "copyright": "Unofficial client. Not affiliated with the University of Toronto or Instructure.",
+    "windows": {
+      "webviewInstallMode": {
+        "type": "downloadBootstrapper"
+      },
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false
+      }
+    }
+  }
+}

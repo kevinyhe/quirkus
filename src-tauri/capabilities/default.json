@@ -1,0 +1,26 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "Main window: events plus the app's own commands. All Quercus and ACORN access goes through these.",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "allow-session",
+    "allow-api-get",
+    "allow-prefetch",
+    "allow-mcp-info",
+    "allow-clear-cache",
+    "allow-set-token",
+    "allow-logout",
+    "allow-login-sso",
+    "allow-open-url",
+    "allow-download-file",
+    "allow-file-bytes",
+    "allow-prefetch-files",
+    "allow-open-path",
+    "allow-reveal-path",
+    "allow-acorn-open",
+    "allow-acorn-sync",
+    "allow-acorn-data"
+  ]
+}

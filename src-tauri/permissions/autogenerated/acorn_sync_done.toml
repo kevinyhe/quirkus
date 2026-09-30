@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-acorn-sync-done"
+description = "Enables the acorn_sync_done command without any pre-configured scope."
+commands.allow = ["acorn_sync_done"]
+
+[[permission]]
+identifier = "deny-acorn-sync-done"
+description = "Denies the acorn_sync_done command without any pre-configured scope."
+commands.deny = ["acorn_sync_done"]

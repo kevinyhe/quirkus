@@ -1,0 +1,34 @@
+{
+  "name": "quirkus",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "check": "svelte-check --tsconfig ./tsconfig.json",
+    "tauri": "tauri",
+    "test": "node tests/ui.mjs && cd src-tauri && cargo test && cd .. && node tests/mcp-e2e.mjs",
+    "shots": "node tests/ui.mjs --shots",
+    "e2e": "node tests/e2e.mjs",
+    "build:windows": "tauri build --runner cargo-xwin --target x86_64-pc-windows-msvc --bundles nsis && node -e \"require('fs').mkdirSync('release',{recursive:true});require('fs').copyFileSync('src-tauri/target/x86_64-pc-windows-msvc/release/quirkus.exe','release/Quirkus.exe')\"",
+    "mcp-e2e": "node tests/mcp-e2e.mjs"
+  },
+  "license": "MIT",
+  "dependencies": {
+    "@tauri-apps/api": "^2.12.0",
+    "dompurify": "^3.4.16",
+    "pdfjs-dist": "^6.3.289"
+  },
+  "devDependencies": {
+    "@sveltejs/vite-plugin-svelte": "^7.3.1",
+    "@tauri-apps/cli": "^2.12.0",
+    "@tsconfig/svelte": "^5.0.8",
+    "playwright": "^1.63.0",
+    "svelte": "^5.57.1",
+    "svelte-check": "^4.7.6",
+    "typescript": "^6.0.3",
+    "vite": "^8.3.1"
+  },
+  "description": "Fast desktop client for U of T Quercus and ACORN"
+}

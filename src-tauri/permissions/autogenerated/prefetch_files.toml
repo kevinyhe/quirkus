@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-prefetch-files"
+description = "Enables the prefetch_files command without any pre-configured scope."
+commands.allow = ["prefetch_files"]
+
+[[permission]]
+identifier = "deny-prefetch-files"
+description = "Denies the prefetch_files command without any pre-configured scope."
+commands.deny = ["prefetch_files"]

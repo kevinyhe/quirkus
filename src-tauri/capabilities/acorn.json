@@ -1,0 +1,8 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "acorn-sync",
+  "description": "Hidden sync windows on ACORN and Degree Explorer. They can only hand JSON back to the app. The visible ACORN window gets nothing.",
+  "windows": ["acorn-sync", "dx-sync"],
+  "remote": { "urls": ["https://acorn.utoronto.ca/*", "https://degreeexplorer.utoronto.ca/*"] },
+  "permissions": ["allow-acorn-capture", "allow-acorn-sync-done"]
+}

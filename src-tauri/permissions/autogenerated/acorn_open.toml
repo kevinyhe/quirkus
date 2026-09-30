@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-acorn-open"
+description = "Enables the acorn_open command without any pre-configured scope."
+commands.allow = ["acorn_open"]
+
+[[permission]]
+identifier = "deny-acorn-open"
+description = "Denies the acorn_open command without any pre-configured scope."
+commands.deny = ["acorn_open"]
