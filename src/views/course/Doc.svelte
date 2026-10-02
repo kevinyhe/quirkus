@@ -74,7 +74,7 @@
 
 <Top {crumbs}>
   {#if meta.data && !meta.data.locked_for_user}
-    <button onclick={() => saveAndOpen(Number(id), folder, courseId)} title="Save to Downloads/Quercus and open with its default app">
+    <button onclick={() => saveAndOpen(Number(id), folder, courseId, meta.data?.display_name)} title="Save to Downloads/Quercus and open with its default app">
       <Icon name="download" size={15} />Open in app
     </button>
   {/if}
@@ -99,7 +99,7 @@
       {:else if loadError}
         <div class="note bad"><Icon name="warn" /><span>{loadError}</span></div>
         <div style="display:flex;gap:8px">
-          <button class="solid" onclick={() => saveAndOpen(Number(id), folder, courseId)}><Icon name="download" size={15} />Open in app</button>
+          <button class="solid" onclick={() => saveAndOpen(Number(id), folder, courseId, f.display_name)}><Icon name="download" size={15} />Open in app</button>
           <button class="ghost" onclick={() => openExternal(quercusUrl)}>Preview in Quercus<Icon name="external" size={13} /></button>
         </div>
       {:else if kind === "pdf"}
@@ -131,7 +131,7 @@
           <span>This file type can't be shown here. <b>Open in app</b> saves it to Downloads and opens it with your default program. <b>Preview in Quercus</b> uses Quercus's own viewer.</span>
         </div>
         <div style="display:flex;gap:8px">
-          <button class="solid" onclick={() => saveAndOpen(Number(id), folder, courseId)}><Icon name="download" size={15} />Open in app</button>
+          <button class="solid" onclick={() => saveAndOpen(Number(id), folder, courseId, f.display_name)}><Icon name="download" size={15} />Open in app</button>
           <button class="ghost" onclick={() => openExternal(quercusUrl)}>Preview in Quercus<Icon name="external" size={13} /></button>
         </div>
       {/if}

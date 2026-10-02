@@ -293,7 +293,8 @@ impl Canvas {
         let changed = self.mem.lock().unwrap().get(key).map_or(true, |(old, _)| **old != v);
         if changed {
             if let Ok(b) = serde_json::to_vec(&v) {
-                let _ = std::fs::write(self.disk_path(key), b);
+                // Cached API responses hold grades, messages, etc. Keep them readable by this user only.
+                write_private(&self.disk_path(key), &b);
             }
         }
         self.mem.lock().unwrap().insert(key.to_string(), (Arc::new(v), Instant::now()));

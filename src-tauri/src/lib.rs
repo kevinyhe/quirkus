@@ -107,10 +107,27 @@ async fn logout(app: AppHandle, api: Api<'_>) -> Result<(), String> {
 }
 
 /// Copy the Quercus session cookies out of the login webview and check they work.
+/// Analytics/marketing cookies Quercus's pages set. They aren't needed for the session and are
+/// nobody's business sitting in auth.json, so drop them before we persist anything.
+fn is_tracking_cookie(name: &str) -> bool {
+    let n = name.to_ascii_lowercase();
+    n.starts_with("_ga") || n == "_gid" || n.starts_with("_gat") || n.starts_with("__utm") || n == "_fbp" || n.starts_with("_hj")
+}
+
+/// Build the Cookie header from the login window's cookies, minus the trackers.
+fn session_cookie_header(cookies: impl IntoIterator<Item = (String, String)>) -> String {
+    cookies
+        .into_iter()
+        .filter(|(name, _)| !is_tracking_cookie(name))
+        .map(|(name, value)| format!("{name}={value}"))
+        .collect::<Vec<_>>()
+        .join("; ")
+}
+
 async fn capture_session(app: &AppHandle, win: &WebviewWindow) -> Result<(), String> {
     let base = Url::parse(BASE).unwrap();
     let cookies = win.cookies_for_url(base).map_err(err)?;
-    let header = cookies.iter().map(|c| format!("{}={}", c.name(), c.value())).collect::<Vec<_>>().join("; ");
+    let header = session_cookie_header(cookies.iter().map(|c| (c.name().to_string(), c.value().to_string())));
     if header.is_empty() {
         return Err("no cookies".into());
     }
@@ -364,8 +381,20 @@ async fn download_file(app: AppHandle, api: Api<'_>, file_id: u64, course_id: Op
     if !same {
         tokio::fs::copy(&src, &dest).await.map_err(err)?;
     }
+    mark_from_internet(&dest);
     Ok(dest.to_string_lossy().into())
 }
+
+/// Tag a saved file as internet-sourced so Windows (SmartScreen, Office protected view) screens it
+/// before the user runs it. No-op elsewhere; other OSes have their own quarantine for browser
+/// downloads but not for files an app writes, which is exactly why executables need the care in the UI.
+#[cfg(windows)]
+fn mark_from_internet(dest: &Path) {
+    let stream = format!("{}:Zone.Identifier", dest.display());
+    let _ = std::fs::write(stream, "[ZoneTransfer]\r\nZoneId=3\r\n");
+}
+#[cfg(not(windows))]
+fn mark_from_internet(_dest: &Path) {}
 
 fn inside_downloads(app: &AppHandle, p: &str) -> Result<PathBuf, String> {
     let root = downloads_root(app)?;
@@ -703,6 +732,18 @@ mod tests {
         // An older or partial notify.json still loads, with the rest defaulted.
         let partial: NotifyPrefs = serde_json::from_str(r#"{"messages":false}"#).unwrap();
         assert!(partial.enabled && !partial.messages && partial.due_hours == 24);
+    }
+
+    #[test]
+    fn drops_tracking_cookies_keeps_the_session() {
+        let jar = [
+            ("_ga", "GA1.1"), ("_ga_JQDSE1YPEX", "x"), ("_gid", "y"), ("_gat", "1"), ("__utma", "z"),
+            ("canvas_session", "SECRET"), ("_csrf_token", "TOK"), ("log_session_id", "L"),
+        ].map(|(n, v)| (n.to_string(), v.to_string()));
+        let header = session_cookie_header(jar);
+        assert!(header.contains("canvas_session=SECRET") && header.contains("_csrf_token=TOK") && header.contains("log_session_id=L"));
+        assert!(!header.contains("_ga") && !header.contains("_gid") && !header.contains("_gat") && !header.contains("__utm"));
+        assert!(is_tracking_cookie("_GA_ABC") && !is_tracking_cookie("canvas_session"));
     }
 
     #[test]

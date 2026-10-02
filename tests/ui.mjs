@@ -123,7 +123,13 @@ function backend(cmd, args) {
     case "save_calendar":
       calls.push([cmd, args]);
       return { ok: "/home/you/Downloads/Quercus/Quirkus timetable.ics" };
+    case "download_file":
+      calls.push([cmd, args]);
+      return { ok: `/home/you/Downloads/Quercus/${args.fileId}` };
+    case "open_path":
+    case "reveal_path":
     case "open_url":
+    case "download_file_unused":
     case "set_notify_prefs":
     case "notify_test":
     case "login_sso":
@@ -554,6 +560,33 @@ for (const scheme of ["light", "dark"]) {
   await ctx.close();
 }
 
+// A course file that could run code is saved, but never auto-opened.
+{
+  const { ctx, page } = await session("light");
+  const bad = [];
+  const openCalls = () => calls.filter((c) => c[0] === "open_path").length;
+  // A normal file: Open in app downloads it and opens it.
+  await page.evaluate(() => (location.hash = "/c/101/f/5003"));
+  await page.waitForSelector("pre.text");
+  calls.length = 0;
+  await page.getByRole("button", { name: "Open in app" }).first().click();
+  await page.waitForTimeout(200);
+  if (!(openCalls() === 1 && calls.some((c) => c[0] === "download_file"))) bad.push("a normal file should download and open");
+  // An .exe: Open in app downloads it but does not open it.
+  await page.evaluate(() => (location.hash = "/c/101/f/5013"));
+  await page.waitForTimeout(300);
+  calls.length = 0;
+  await page.getByRole("button", { name: "Open in app" }).first().click();
+  await page.waitForTimeout(200);
+  if (!calls.some((c) => c[0] === "download_file")) bad.push("the .exe should still be saved");
+  if (openCalls() !== 0) bad.push("the .exe must not be auto-opened");
+  const warned = (await page.locator(".toast").allInnerTexts()).join(" ").includes("can run programs");
+  if (!warned) bad.push("the user should be told why it wasn't opened");
+  console.log(`${bad.length ? "FAIL" : "ok  "} light risky files aren't auto-opened${bad.length ? "\n       " + bad.join("\n       ") : ""}`);
+  failures += bad.length ? 1 : 0;
+  await ctx.close();
+}
+
 // Finished work never shows a red due date: a past due date is only red while there's still something to do.
 {
   const { ctx, page } = await session("light");
@@ -716,7 +749,10 @@ for (const scheme of ["light", "dark"]) {
   want((await acct("ACORN").innerText()).includes("Connecting"), "ACORN starts connecting by itself");
   // U of T wants the password again for ACORN.
   await emit("acorn-state", { state: "needs-signin", note: "timeout" });
-  await page.getByRole("button", { name: "Sign in to ACORN" }).click();
+  const acornSignIn = page.getByRole("button", { name: "Sign in to ACORN" });
+  await acornSignIn.waitFor({ state: "visible" });
+  await page.waitForTimeout(150);
+  await acornSignIn.click();
   want(called("acorn_sync").at(-1)?.interactive === true, "ACORN sign-in opens the U of T window when it's needed");
   // ACORN finished syncing.
   globalThis.acornEmpty = false;

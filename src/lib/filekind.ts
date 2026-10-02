@@ -27,6 +27,20 @@ const TEXT = new Set(
 /** Files with no extension that are still plain text. */
 const TEXT_NAMES = new Set(["makefile", "dockerfile", "readme", "license", "gemfile", "rakefile", ".gitignore", ".gitattributes"]);
 
+// Types that run code or that an app opens into something that can (macros, shortcuts, installers).
+// We still save these; we just don't auto-open them without the user saying so.
+const RISKY = new Set(
+  ("exe msi msix bat cmd com scr pif ps1 psm1 vbs vbe wsf wsh js jse jar lnk reg msc hta cpl inf " +
+    "sh bash command run bin app dmg pkg mpkg deb rpm appimage apk " +
+    "docm dotm xlsm xltm xlsb pptm potm ppsm").split(" "),
+);
+
+export function isRiskyToOpen(name: string): boolean {
+  const e = ext(name);
+  // No extension is also risky: the OS falls back to whatever is registered, and it hides the real type.
+  return e === "" || RISKY.has(e);
+}
+
 export function ext(name: string): string {
   const i = name.lastIndexOf(".");
   return i > 0 ? name.slice(i + 1).toLowerCase() : "";
