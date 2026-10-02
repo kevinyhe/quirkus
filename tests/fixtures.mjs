@@ -163,6 +163,7 @@ const FILES = {
     [5011, "notes.weird", "application/octet-stream"],
     [5012, "Lecture 1.key", "application/octet-stream"],
   ].map(([id, display_name, type]) => [id, { id, display_name, size: 4096, "content-type": type, updated_at: at(-3), url: `https://q.utoronto.ca/files/${id}/download`, folder_id: 6003 }])),
+  5013: { id: 5013, display_name: "grader.exe", size: 4096, "content-type": "application/octet-stream", updated_at: at(-3), url: "https://q.utoronto.ca/files/5013/download", folder_id: 6003 },
 };
 
 const FOLDERS = {
@@ -254,7 +255,7 @@ function fail(status) {
   throw `http-${status}`;
 }
 
-export const FILE_KIND = { 5001: "pdf", 5002: "png", 5003: "text", 5004: "docx", 5005: "pptx", 5006: "xlsx", 5007: "csv", 5008: "ipynb", 5009: "md", 5010: "zip", 5011: "text", 5012: "binary" };
+export const FILE_KIND = { 5001: "pdf", 5002: "png", 5003: "text", 5004: "docx", 5005: "pptx", 5006: "xlsx", 5007: "csv", 5008: "ipynb", 5009: "md", 5010: "zip", 5011: "text", 5012: "binary", 5013: "binary" };
 
 // ---------- ACORN / Degree Explorer (shapes from the community API registry) ----------
 

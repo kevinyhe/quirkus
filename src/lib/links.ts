@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { BASE, toast } from "./api.svelte";
+import { isRiskyToOpen } from "./filekind";
 import { go } from "./router.svelte";
 import type { ModuleItem } from "./types";
 
@@ -66,9 +67,18 @@ export function openItem(cid: string | number, it: ModuleItem) {
   openExternal(it.type === "ExternalUrl" ? it.external_url! : it.html_url!);
 }
 
-export async function saveAndOpen(fileId: number, folder: string, courseId?: number) {
+export async function saveAndOpen(fileId: number, folder: string, courseId?: number, name?: string) {
   try {
     const path = await invoke<string>("download_file", { fileId, courseId: courseId ?? null, folder });
+    // Risky types are saved but never auto-opened: opening would run them with their default program.
+    // The user has to choose to open, and even then we reveal it in the folder rather than launch it.
+    if (name && isRiskyToOpen(name)) {
+      toast(`Saved ${name} to Downloads. This type can run programs, so Quirkus won't open it for you.`, {
+        label: "Show in folder",
+        run: () => invoke("reveal_path", { path }),
+      });
+      return;
+    }
     await invoke("open_path", { path });
     toast(`Saved to ${path}`, { label: "Show in folder", run: () => invoke("reveal_path", { path }) });
   } catch (e) {
