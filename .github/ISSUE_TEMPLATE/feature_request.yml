@@ -1,0 +1,16 @@
+name: Feature request
+description: Something Quirkus should do
+labels: [enhancement]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What you want to do
+      description: The task you're trying to get done, and how you do it today.
+    validations:
+      required: true
+  - type: textarea
+    id: idea
+    attributes:
+      label: How it could work
+      description: Optional.

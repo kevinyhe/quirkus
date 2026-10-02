@@ -1,0 +1,71 @@
+# Runs on every pull request and on pushes to main: type check, UI tests, Rust tests, MCP end-to-end.
+# The Rust tests also run on Windows and macOS, so a platform-only failure shows up here and not at release time.
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: test (linux)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Linux dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libgtk-3-dev libsoup-3.0-dev librsvg2-dev libayatana-appindicator3-dev libxdo-dev
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - run: npm ci
+      - run: npm run check
+      - run: npm run build
+
+      - name: UI tests (headless Chromium, fake backend)
+        run: |
+          npx playwright install --with-deps chromium
+          node tests/ui.mjs
+
+      - name: Rust tests
+        run: cargo test
+        working-directory: src-tauri
+
+      - name: MCP server end-to-end
+        run: |
+          cargo build --manifest-path src-tauri/Cargo.toml
+          node tests/mcp-e2e.mjs
+
+  rust:
+    name: rust tests (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+      - run: cargo test
+        working-directory: src-tauri
