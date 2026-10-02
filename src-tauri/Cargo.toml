@@ -1,6 +1,6 @@
 [package]
 name = "quirkus"
-version = "0.1.0"
+version = "0.1.1"
 description = "Fast desktop client for U of T Quercus and ACORN, with an MCP server for AI assistants"
 authors = ["Quirkus contributors"]
 license = "MIT"
