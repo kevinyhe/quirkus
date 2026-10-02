@@ -19,6 +19,11 @@
     "allow-prefetch-files",
     "allow-open-path",
     "allow-reveal-path",
+    "allow-notify-prefs",
+    "allow-set-notify-prefs",
+    "allow-notify-test",
+    "allow-save-calendar",
+    "core:webview:allow-set-webview-zoom",
     "allow-acorn-open",
     "allow-acorn-sync",
     "allow-acorn-data"

@@ -1,10 +1,17 @@
+import { prefs } from "./prefs.svelte";
+
 const DAY = 86_400_000;
 
 function startOfDay(d: Date) {
   return new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
 }
 
-const clock = new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" });
+const clocks = {
+  12: new Intl.DateTimeFormat(undefined, { hour: "numeric", minute: "2-digit" }),
+  24: new Intl.DateTimeFormat(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" }),
+};
+/** Times follow the 24-hour setting. */
+const clock = { format: (d: Date) => clocks[prefs.hour24 ? 24 : 12].format(d) };
 const weekday = new Intl.DateTimeFormat(undefined, { weekday: "short" });
 const monthDay = new Intl.DateTimeFormat(undefined, { weekday: "short", month: "short", day: "numeric" });
 const full = new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric" });

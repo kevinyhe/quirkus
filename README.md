@@ -25,11 +25,18 @@ From the [latest release](../../releases/latest):
 - **Due**: every dated item across your courses, overdue first.
 - **Courses**: home, announcements, assignments, modules, files, pages, discussions, grades, syllabus.
   Quizzes, people, and LTI tools open in a Quercus window that shares your sign-in.
-- **Files**: PDFs, images, video, and code open inside the app. Files in a module you open are downloaded in the
-  background, so clicking one is instant.
+- **Files**: PDFs, images, audio, video, code, Word (`.docx`), PowerPoint (`.pptx`), Excel (`.xlsx`, `.xls`, `.csv`),
+  OpenDocument, Jupyter notebooks, Markdown, HTML, and zip listings open inside the app. PowerPoint shows each
+  slide's text and pictures, not its layout. Old `.doc` and `.ppt`, Keynote, and Pages files open in your default
+  program instead. Files in a module you open are downloaded in the background, so clicking one is instant.
 - **ACORN**: timetable (Fall/Winter, rooms, instructors, waitlist rank), academic history from Degree Explorer, and notices.
 - **Search**: `Ctrl K` finds any course, assignment, page, or module file.
-- **Notifications**: new announcements, grades, and messages, checked every 10 minutes.
+- **Notifications**: new announcements, grades, and messages, plus a reminder before unfinished work is due.
+  Checked every 10 minutes. Each kind can be turned off in Settings.
+- **Calendar**: add your Quercus due dates to Google Calendar, Outlook, or your default calendar app, and export
+  your ACORN timetable as an `.ics` file. Timetable term dates are estimated; reading weeks aren't removed.
+- **Settings**: theme, accent colour, window zoom, 24-hour clock, start page, what Home shows, and which courses
+  appear. A welcome tour walks through these on first run.
 - Works offline from its local copy. Adapts from a narrow side-by-side window to full screen.
 
 Submitting work, taking quizzes, and enrolling happen in the real Quercus/ACORN pages. The app never changes
@@ -69,7 +76,10 @@ Tools (all read-only): `list_courses`, `upcoming_deadlines`, `course_assignments
   UofT sign-in completes on its own, and runs a fixed script that makes the same read-only requests ACORN's own
   pages make ([route list](https://github.com/SleepyPandas/unofficial-UofT-api-registry)). Those windows can only
   hand back five named results (`src-tauri/capabilities/acorn.json`, `valid_key` in `src-tauri/src/acorn.rs`).
-- **Everything is deleted on sign-out**: session, cached pages and files, ACORN data.
+- **Calendar links**: the Google and Outlook buttons open your browser with your private Quercus calendar link, so
+  that service receives the link. Nothing is sent unless you press one.
+- **Everything is deleted on sign-out**: session, cached pages and files, ACORN data. Your appearance and
+  notification settings stay.
 - **MCP** only runs if you add it to an AI client, and only reads. Remember that whatever it reads is sent to that
   AI provider under their terms.
 
@@ -103,6 +113,11 @@ npm run build:windows  # → release/Quirkus.exe (portable) and the NSIS install
 Test the installed Windows app with Windows' Node (drives WebView2 over remote debugging with an isolated profile):
 `node.exe tests\e2e-windows.mjs "%LOCALAPPDATA%\Quirkus\quirkus.exe"`
 
+### CI
+
+`.github/workflows/ci.yml` runs on every pull request and on pushes to `main`: type check, UI tests, Rust tests, and
+the MCP end-to-end test on Linux, plus the Rust tests on Windows and macOS.
+
 ### Releases
 
 Push a tag like `v0.1.0`. `.github/workflows/release.yml` builds Windows, macOS, and Linux and attaches everything,
@@ -112,7 +127,10 @@ including the portable `Quirkus.exe`, to a draft GitHub release.
 
 ```
 src-tauri/src/canvas.rs   Canvas API client: auth, pagination, memory + disk cache, background refresh
-src-tauri/src/lib.rs      Tauri commands, sign-in window, qc:// image proxy, files, notifications
+src-tauri/src/lib.rs      Tauri commands, sign-in window, qc:// image proxy, files, notifications, calendar file
+src/lib/prefs.svelte.ts   Settings (saved in the webview's localStorage) and how they're applied
+src/lib/convert.ts        Office, notebook, Markdown, and zip readers for the file viewer
+src/views/Welcome.svelte  First-run tour; its steps are the components in src/components/setup/
 src-tauri/src/acorn.rs    ACORN / Degree Explorer sync
 src-tauri/src/mcp.rs      MCP server (`quirkus mcp`)
 src/lib/api.svelte.ts     query(): reactive, cache-first reads that update in place

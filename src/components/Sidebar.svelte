@@ -1,7 +1,9 @@
 <script lang="ts">
+  import { untrack } from "svelte";
   import { query } from "../lib/api.svelte";
   import { route } from "../lib/router.svelte";
   import { expand } from "../lib/tree.svelte";
+  import { prefs } from "../lib/prefs.svelte";
   import { COURSES, SELF, UNREAD, visible } from "../lib/paths";
   import TreeRow from "./tree/TreeRow.svelte";
   import TreeCourse from "./tree/TreeCourse.svelte";
@@ -14,13 +16,16 @@
   const list = $derived(visible(courses.data));
   const unreadCount = $derived(Number(unread.data?.unread_count ?? 0));
 
-  // Reveal the current page in the tree.
+  // Reveal the current page in the tree. Only when the page changes: `expand` reads the tree, and if this
+  // effect tracked that read it would re-open the current course the moment you collapsed it.
   $effect(() => {
     const p = route.path.split("/").filter(Boolean);
-    if (p[0] === "c" && p[1]) {
-      expand(`c${p[1]}`);
-      if (p[2] === "modules") expand(`m${p[1]}`);
-    }
+    untrack(() => {
+      if (p[0] === "c" && p[1]) {
+        expand(`c${p[1]}`);
+        if (p[2] === "modules") expand(`m${p[1]}`);
+      }
+    });
   });
 </script>
 
@@ -41,10 +46,12 @@
       {#snippet end()}{#if unreadCount > 0}<span class="count-badge">{unreadCount}</span>{/if}{/snippet}
     </TreeRow>
 
-    <div class="side-label">ACORN</div>
-    <TreeRow icon="clock" label="Timetable" href="/acorn/timetable" />
-    <TreeRow icon="history" label="Academic history" href="/acorn/history" />
-    <TreeRow icon="acorn" label="Account & notices" href="/acorn" />
+    {#if prefs.showAcorn}
+      <div class="side-label">ACORN</div>
+      <TreeRow icon="clock" label="Timetable" href="/acorn/timetable" />
+      <TreeRow icon="history" label="Academic history" href="/acorn/history" />
+      <TreeRow icon="acorn" label="Account & notices" href="/acorn" />
+    {/if}
 
     <div class="side-label">Courses</div>
     {#each list as c (c.id)}

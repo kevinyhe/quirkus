@@ -2,6 +2,7 @@
   import { query } from "../lib/api.svelte";
   import * as P from "../lib/paths";
   import { day, isoDate } from "../lib/format";
+  import { plannerDone as isDone } from "../lib/status";
   import Top from "../components/Top.svelte";
   import State from "../components/State.svelte";
   import DueItem from "../components/DueItem.svelte";
@@ -11,8 +12,6 @@
   const items = query<PlannerItem[]>(() => P.planner(isoDate(-21), isoDate(70)), 120);
   const courses = query<Course[]>(() => P.COURSES, 600);
   const byId = $derived(new Map((courses.data ?? []).map((c) => [c.id, c])));
-
-  const isDone = (i: PlannerItem) => !!((i.submissions && i.submissions.submitted) || i.planner_override?.marked_complete);
 
   const sections = $derived.by(() => {
     const now = Date.now();

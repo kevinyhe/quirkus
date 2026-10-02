@@ -60,6 +60,8 @@ export interface Assignment {
   html_url: string;
   submission_types?: string[];
   submission?: Submission;
+  quiz_id?: number;
+  discussion_topic?: { id: number };
   omit_from_final_grade?: boolean;
   locked_for_user?: boolean;
   lock_explanation?: string;
@@ -89,7 +91,7 @@ export interface PlannerItem {
   plannable_date: string;
   plannable: { title: string; points_possible?: number; url?: string };
   html_url: string;
-  submissions?: false | { submitted?: boolean; graded?: boolean; missing?: boolean; late?: boolean };
+  submissions?: false | { submitted?: boolean; graded?: boolean; excused?: boolean; missing?: boolean; late?: boolean };
   planner_override?: { marked_complete?: boolean } | null;
   new_activity?: boolean;
 }

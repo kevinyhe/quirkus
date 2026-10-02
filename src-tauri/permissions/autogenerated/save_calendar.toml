@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-save-calendar"
+description = "Enables the save_calendar command without any pre-configured scope."
+commands.allow = ["save_calendar"]
+
+[[permission]]
+identifier = "deny-save-calendar"
+description = "Denies the save_calendar command without any pre-configured scope."
+commands.deny = ["save_calendar"]

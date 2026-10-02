@@ -2,6 +2,8 @@
   import { query, prefetch } from "../lib/api.svelte";
   import * as P from "../lib/paths";
   import { isoDate, ago, plain, pct, day, today } from "../lib/format";
+  import { plannerDone } from "../lib/status";
+  import { prefs, HOME_DAYS } from "../lib/prefs.svelte";
   import Top from "../components/Top.svelte";
   import State from "../components/State.svelte";
   import DueItem from "../components/DueItem.svelte";
@@ -10,7 +12,7 @@
   import type { Course, PlannerItem, Topic } from "../lib/types";
 
   const courses = query<Course[]>(() => P.COURSES, 600);
-  const upcoming = query<PlannerItem[]>(() => P.planner(isoDate(-1), isoDate(14)), 120);
+  const upcoming = query<PlannerItem[]>(() => P.planner(isoDate(-1), isoDate(prefs.homeDays)), 120);
 
   const list = $derived(P.visible(courses.data));
   const byId = $derived(new Map((courses.data ?? []).map((c) => [c.id, c])));
@@ -27,8 +29,8 @@
     (upcoming.data ?? []).filter(
       (i) =>
         i.plannable_type !== "announcement" &&
-        !(i.submissions && i.submissions.submitted) &&
-        !i.planner_override?.marked_complete &&
+        !prefs.hiddenCourses.includes(i.course_id ?? -1) &&
+        !plannerDone(i) &&
         new Date(i.plannable_date).getTime() > Date.now() - 86400000,
     ),
   );
@@ -58,9 +60,9 @@
   <h1 class="title">Today</h1>
   <p class="subtitle">{today()}</p>
 
-  <div class="home-grid">
+  <div class="home-grid" class:one={!prefs.homeClasses && !prefs.homeCourses && !prefs.homeAnnouncements}>
     <section>
-      <h2 class="section">Due in the next two weeks <span class="n">{todo.length}</span><a class="end small muted" href="#/due">All dates</a></h2>
+      <h2 class="section">Due in the next {HOME_DAYS.find(([d]) => d === prefs.homeDays)?.[1] ?? "2 weeks"} <span class="n">{todo.length}</span><a class="end small muted" href="#/due">All dates</a></h2>
       <State q={upcoming} rows={6}>
         <div class="list boxed">
           {#each byDay as g (g.label)}
@@ -76,8 +78,9 @@
     </section>
 
     <section>
-      <ClassesToday courses={courses.data ?? []} />
+      {#if prefs.homeClasses}<ClassesToday courses={courses.data ?? []} />{/if}
 
+      {#if prefs.homeCourses}
       <h2 class="section">Courses <span class="n">{list.length}</span></h2>
       <State q={courses} rows={4}>
         <div class="list boxed">
@@ -95,11 +98,13 @@
           {/each}
         </div>
       </State>
+      {/if}
 
+      {#if prefs.homeAnnouncements}
       <h2 class="section">Announcements</h2>
       <State q={news} rows={4}>
         <div class="list">
-          {#each (news.data ?? []).slice(0, 8) as a (a.id)}
+          {#each (news.data ?? []).filter((a) => !prefs.hiddenCourses.includes(courseOf(a.context_code)?.id ?? -1)).slice(0, 8) as a (a.id)}
             {@const c = courseOf(a.context_code)}
             <a class="item top" href="#/c/{c?.id}/d/{a.id}">
               <Mark id={c?.id} code={c?.course_code} size={22} />
@@ -114,6 +119,7 @@
           {/each}
         </div>
       </State>
+      {/if}
     </section>
   </div>
 </div>
