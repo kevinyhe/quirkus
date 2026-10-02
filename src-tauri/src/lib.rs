@@ -567,6 +567,8 @@ mod command_rules {
     #[test]
     fn window_creating_commands_are_async() {
         for (file, src) in [("lib.rs", include_str!("lib.rs")), ("acorn.rs", include_str!("acorn.rs"))] {
+            // Git on Windows checks files out with CRLF, which would hide the end of each function.
+            let src = src.replace("\r\n", "\n");
             // Built in two pieces so this test doesn't match its own source.
             for chunk in src.split(concat!("#[tauri::", "command]")).skip(1) {
                 let sig = chunk.lines().map(str::trim).find(|l| !l.is_empty() && !l.starts_with("//")).unwrap_or("");
