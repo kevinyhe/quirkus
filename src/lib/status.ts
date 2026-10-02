@@ -1,4 +1,4 @@
-import type { Assignment } from "./types";
+import type { Assignment, PlannerItem } from "./types";
 import { num } from "./format";
 
 /** One status chip for an assignment, in the order a student cares about. */
@@ -13,9 +13,16 @@ export function status(a: Assignment): { label: string; cls: string } | null {
   return null;
 }
 
+/** Nothing left to do: submitted, graded (on-paper work is graded without ever being submitted), or excused. */
 export function isDone(a: Assignment): boolean {
   const s = a.submission;
-  return !!(s?.submitted_at || s?.excused || (s?.score != null && s.workflow_state === "graded"));
+  return !!(s?.submitted_at || s?.excused || s?.workflow_state === "graded");
+}
+
+/** The same rule for planner items (Home, Due), plus items the student ticked off themselves. */
+export function plannerDone(i: PlannerItem): boolean {
+  const s = i.submissions || undefined;
+  return !!(s?.submitted || s?.graded || s?.excused || i.planner_override?.marked_complete);
 }
 
 const TYPES: Record<string, string> = {

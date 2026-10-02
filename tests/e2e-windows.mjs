@@ -69,6 +69,13 @@ try {
   const errors = [];
   page.on("pageerror", (e) => errors.push(e.message));
   page.on("console", (m) => m.type() === "error" && errors.push(m.text()));
+  // A fresh profile opens on the welcome tour: check it's there, then skip it the way a user would.
+  await page.waitForSelector(".welcome, .shell", { timeout: 15000 });
+  if (await page.locator(".welcome").count()) {
+    check((await page.locator(".w-step h1").innerText()) === "Meet Quirkus", "first run shows the welcome tour");
+    await page.getByRole("button", { name: "Get started" }).click();
+    await page.getByRole("button", { name: "Skip setup" }).click();
+  }
   await page.waitForSelector(".shell", { timeout: 15000 });
   const vp = await page.evaluate(() => ({ w: innerWidth, h: innerHeight, dpr: devicePixelRatio, sw: screen.availWidth, sh: screen.availHeight }));
   console.log(`info window ${vp.w}×${vp.h} CSS px at ${vp.dpr}× scaling; screen ${vp.sw}×${vp.sh}`);

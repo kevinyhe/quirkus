@@ -1,0 +1,11 @@
+# Automatically generated - DO NOT EDIT!
+
+[[permission]]
+identifier = "allow-notify-prefs"
+description = "Enables the notify_prefs command without any pre-configured scope."
+commands.allow = ["notify_prefs"]
+
+[[permission]]
+identifier = "deny-notify-prefs"
+description = "Denies the notify_prefs command without any pre-configured scope."
+commands.deny = ["notify_prefs"]

@@ -14,6 +14,9 @@
   import Palette from "./components/Palette.svelte";
   import Toasts from "./components/Toasts.svelte";
   import Login from "./views/Login.svelte";
+  import Welcome from "./views/Welcome.svelte";
+  import { prefs } from "./lib/prefs.svelte";
+  import { go } from "./lib/router.svelte";
   import Home from "./views/Home.svelte";
   import Due from "./views/Due.svelte";
   import Inbox from "./views/Inbox.svelte";
@@ -22,7 +25,11 @@
   import Course from "./views/course/Course.svelte";
   import Doc from "./views/course/Doc.svelte";
 
-  invoke<boolean>("session").then((s) => (app.signedIn = s));
+  invoke<boolean>("session").then((s) => {
+    app.signedIn = s;
+    // Open on the page chosen in Settings, unless the app was reopened on a specific page.
+    if (s && prefs.onboarded && route.path === "/" && prefs.startPage !== "/") go(prefs.startPage);
+  });
 
   listen("signed-in", () => {
     app.signedIn = true;
@@ -70,7 +77,9 @@
 
 <svelte:window {onkeydown} onmouseover={onHover} />
 
-{#if app.signedIn === false}
+{#if !prefs.onboarded}
+  <Welcome />
+{:else if app.signedIn === false}
   <Login />
 {:else if app.signedIn}
   <div class="shell" class:collapsed={ui.collapsed} class:drawer={ui.drawer}>

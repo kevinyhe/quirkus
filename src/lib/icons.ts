@@ -27,10 +27,10 @@ export const ITEM_ICON: Record<string, string> = {
 export function fileIcon(name: string, type = ""): string {
   const ext = name.split(".").pop()?.toLowerCase() ?? "";
   if (type === "application/pdf" || ext === "pdf") return "pdf";
-  if (type.startsWith("image/")) return "image";
-  if (type.startsWith("video/") || type.startsWith("audio/")) return "video";
-  if (["ppt", "pptx", "key", "odp"].includes(ext)) return "slides";
-  if (["xls", "xlsx", "csv", "ods"].includes(ext)) return "sheet";
+  if (type.startsWith("image/") || ["png", "jpg", "jpeg", "gif", "webp", "svg", "bmp", "avif"].includes(ext)) return "image";
+  if (type.startsWith("video/") || type.startsWith("audio/") || ["mp4", "mov", "webm", "m4v", "mp3", "wav", "m4a", "ogg", "flac"].includes(ext)) return "video";
+  if (["ppt", "pptx", "ppsx", "key", "odp"].includes(ext)) return "slides";
+  if (["xls", "xlsx", "csv", "tsv", "ods"].includes(ext)) return "sheet";
   if (["doc", "docx", "rtf", "odt", "txt", "md"].includes(ext)) return "page";
   if (["zip", "tar", "gz", "7z", "rar"].includes(ext)) return "archive";
   if (["py", "java", "c", "cpp", "h", "js", "ts", "r", "rmd", "sql", "ipynb", "m", "hs", "rkt", "sh", "json"].includes(ext)) return "code";

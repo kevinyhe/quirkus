@@ -1,8 +1,10 @@
 import type { Course } from "./types";
+import { prefs } from "./prefs.svelte";
 
 // Shared paths. Screens that show the same data must use the exact same path so they share one cache entry.
 
 export const SELF = "/api/v1/users/self";
+export const PROFILE = "/api/v1/users/self/profile";
 export const COLORS = "/api/v1/users/self/colors";
 export const UNREAD = "/api/v1/conversations/unread_count";
 export const INBOX = "/api/v1/conversations?scope=inbox";
@@ -38,8 +40,8 @@ export const fileMeta = (id: string | number, c?: string | number) =>
 export const planner = (start: string, end: string) =>
   `/api/v1/planner/items?start_date=${start}&end_date=${end}`;
 
-/** Courses to show in the sidebar and dashboard: accessible, current, and starred (Canvas treats all as starred until you pick). */
-export function visible(list: Course[] | undefined): Course[] {
+/** Your current courses: accessible, in term, and starred (Canvas treats all as starred until you pick). */
+export function current(list: Course[] | undefined): Course[] {
   if (!list) return [];
   const now = Date.now();
   const ok = list.filter(
@@ -47,6 +49,11 @@ export function visible(list: Course[] | undefined): Course[] {
   );
   const fav = ok.filter((c) => c.is_favorite);
   return (fav.length ? fav : ok).sort((a, b) => a.course_code.localeCompare(b.course_code));
+}
+
+/** Courses to show in the sidebar, Home, and search: the current ones, minus any hidden in Settings. */
+export function visible(list: Course[] | undefined): Course[] {
+  return current(list).filter((c) => !prefs.hiddenCourses.includes(c.id));
 }
 
 /** "CSC263H1 F LEC0101 20259:Data Structures" → "CSC263H1" */

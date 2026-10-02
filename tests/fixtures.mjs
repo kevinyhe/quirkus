@@ -152,6 +152,17 @@ const FILES = {
   5002: { id: 5002, display_name: "Heap diagram.png", size: 1200, "content-type": "image/png", updated_at: at(-20), url: "https://q.utoronto.ca/files/5002/download", folder_id: 6002 },
   5003: { id: 5003, display_name: "ps3_starter.py", size: 420, "content-type": "text/x-python", updated_at: at(-4), url: "https://q.utoronto.ca/files/5003/download", folder_id: 6002 },
   5004: { id: 5004, display_name: "Extra reading.docx", size: 88231, "content-type": "application/vnd.openxmlformats-officedocument.wordprocessingml.document", updated_at: at(-40), url: "https://q.utoronto.ca/files/5004/download", folder_id: 6001 },
+  // One of each kind the viewer handles, plus one it can't. Kept out of the folder listings (folder 6003 isn't listed).
+  ...Object.fromEntries([
+    [5005, "Week 5 slides.pptx", "application/vnd.openxmlformats-officedocument.presentationml.presentation"],
+    [5006, "Marks breakdown.xlsx", "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"],
+    [5007, "tutorial_rooms.csv", "text/csv"],
+    [5008, "Lab 2.ipynb", "application/octet-stream"],
+    [5009, "README.md", "application/octet-stream"],
+    [5010, "ps3_starter.zip", "application/zip"],
+    [5011, "notes.weird", "application/octet-stream"],
+    [5012, "Lecture 1.key", "application/octet-stream"],
+  ].map(([id, display_name, type]) => [id, { id, display_name, size: 4096, "content-type": type, updated_at: at(-3), url: `https://q.utoronto.ca/files/${id}/download`, folder_id: 6003 }])),
 };
 
 const FOLDERS = {
@@ -186,6 +197,7 @@ export function route(path) {
   const [p, q = ""] = path.split("?");
   let m;
   if (p === "/api/v1/users/self") return { id: 1, name: "Alex Student", short_name: "Alex", primary_email: "alex.student@mail.utoronto.ca" };
+  if (p === "/api/v1/users/self/profile") return { id: 1, name: "Alex Student", calendar: { ics: "https://q.utoronto.ca/feeds/calendars/user_AbC123.ics" } };
   if (p === "/api/v1/users/self/colors") return { custom_colors: { course_101: "#2f6f9f", course_202: "#a2572e", course_303: "#6a5aa8" } };
   if (p === "/api/v1/conversations/unread_count") return { unread_count: "1" };
   if (p === "/api/v1/conversations") return CONVERSATIONS.map(({ messages, ...c }) => c);
@@ -242,7 +254,7 @@ function fail(status) {
   throw `http-${status}`;
 }
 
-export const FILE_KIND = { 5001: "pdf", 5002: "png", 5003: "text", 5004: "docx" };
+export const FILE_KIND = { 5001: "pdf", 5002: "png", 5003: "text", 5004: "docx", 5005: "pptx", 5006: "xlsx", 5007: "csv", 5008: "ipynb", 5009: "md", 5010: "zip", 5011: "text", 5012: "binary" };
 
 // ---------- ACORN / Degree Explorer (shapes from the community API registry) ----------
 

@@ -35,7 +35,7 @@ writeFileSync(join(acornDir, "synced_at"), String(Math.floor(Date.now() / 1000))
 
 // ---------- run the release app ----------
 const STEP = 3000;
-const TOUR = [["home", "/"], ["assignment", "/c/101/a/3001"], ["modules", "/c/101/modules"], ["pdf", "/c/101/f/5001"], ["timetable", "/acorn/timetable"], ["hidden-files", "/c/303/files"]];
+const TOUR = [["home", "/"], ["assignment", "/c/101/a/3001"], ["modules", "/c/101/modules"], ["pdf", "/c/101/f/5001"], ["timetable", "/acorn/timetable"], ["hidden-files", "/c/303/files"], ["settings", "/settings"]];
 const app = spawn(BIN, [], {
   env: {
     ...process.env,

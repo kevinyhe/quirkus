@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
+import { prefs } from "./prefs.svelte";
 
 // Shapes follow the community-documented ACORN / Degree Explorer responses. Every field is optional:
 // the formats aren't published, so parsing never assumes a field exists.
@@ -202,6 +203,7 @@ export function clock(min: number): string {
   const h = Math.floor(min / 60);
   const m = min % 60;
   const d = new Date(2000, 0, 1, h, m);
+  if (prefs.hour24) return d.toLocaleTimeString(undefined, { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
   return d.toLocaleTimeString(undefined, { hour: "numeric", minute: m ? "2-digit" : undefined });
 }
 

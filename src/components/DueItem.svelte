@@ -1,6 +1,7 @@
 <script lang="ts">
   import { openLink } from "../lib/links";
   import { time, urgency } from "../lib/format";
+  import { plannerDone } from "../lib/status";
   import Mark from "./Mark.svelte";
   import type { PlannerItem } from "../lib/types";
 
@@ -17,7 +18,7 @@
   };
 
   const s = $derived(item.submissions || undefined);
-  const done = $derived(!!(s?.submitted || item.planner_override?.marked_complete));
+  const done = $derived(plannerDone(item));
 </script>
 
 <button class="item" class:done onclick={() => openLink(item.html_url)}>
@@ -27,6 +28,7 @@
     <span class="meta">{code || item.context_name} · {KIND[item.plannable_type] ?? item.plannable_type}{item.plannable.points_possible ? ` · ${item.plannable.points_possible} pts` : ""}</span>
   </span>
   {#if s?.graded}<span class="tag ok">Graded</span>
+  {:else if s?.excused}<span class="tag ok">Excused</span>
   {:else if done}<span class="tag ok">Submitted</span>
   {:else if s?.missing}<span class="tag bad keep">Missing</span>{/if}
   {#if s?.late}<span class="tag warn">Late</span>{/if}

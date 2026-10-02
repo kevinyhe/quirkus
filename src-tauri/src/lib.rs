@@ -200,7 +200,8 @@ async fn open_url(app: AppHandle, url: String) -> Result<(), String> {
         }
         return Ok(());
     }
-    if matches!(u.scheme(), "http" | "https" | "mailto") {
+    // webcal: hands a calendar feed to the default calendar app.
+    if matches!(u.scheme(), "http" | "https" | "mailto" | "webcal") {
         app.opener().open_url(url, None::<&str>).map_err(err)?;
     }
     Ok(())
@@ -298,7 +299,11 @@ fn viewable(meta: &Value) -> bool {
     ct == "application/pdf"
         || ct.starts_with("image/")
         || ct.starts_with("text/")
-        || matches!(ext, "pdf" | "txt" | "md" | "csv" | "py" | "java" | "c" | "cpp" | "h" | "js" | "ts" | "r" | "sql" | "json")
+        || matches!(
+            ext,
+            "pdf" | "txt" | "md" | "csv" | "tsv" | "py" | "java" | "c" | "cpp" | "h" | "js" | "ts" | "r" | "sql" | "json"
+                | "docx" | "odt" | "pptx" | "ppsx" | "odp" | "xlsx" | "xls" | "ods" | "ipynb" | "html" | "htm"
+        )
 }
 
 /// Download a module's viewable files into the local cache in the background, so opening one is
@@ -382,23 +387,110 @@ fn reveal_path(app: AppHandle, path: String) -> Result<(), String> {
 
 // ---------- Notifications ----------
 
-fn stream_key(item: &Value) -> Option<(String, String, String)> {
+/// What the user wants to be told about. Saved as notify.json in the config folder.
+#[derive(Clone, serde::Serialize, serde::Deserialize)]
+#[serde(default)]
+pub struct NotifyPrefs {
+    enabled: bool,
+    announcements: bool,
+    grades: bool,
+    messages: bool,
+    /// Remind about unfinished work this many hours before it's due.
+    due: bool,
+    due_hours: u32,
+}
+
+impl Default for NotifyPrefs {
+    fn default() -> Self {
+        NotifyPrefs { enabled: true, announcements: true, grades: true, messages: true, due: true, due_hours: 24 }
+    }
+}
+
+fn load_notify(app: &AppHandle) -> NotifyPrefs {
+    std::fs::read(dirs(app).config.join("notify.json")).ok().and_then(|b| serde_json::from_slice(&b).ok()).unwrap_or_default()
+}
+
+#[tauri::command]
+fn notify_prefs(app: AppHandle) -> NotifyPrefs {
+    load_notify(&app)
+}
+
+#[tauri::command]
+fn set_notify_prefs(app: AppHandle, prefs: NotifyPrefs) -> Result<(), String> {
+    let prefs = NotifyPrefs { due_hours: prefs.due_hours.clamp(1, 72), ..prefs };
+    canvas::write_private(&dirs(&app).config.join("notify.json"), &serde_json::to_vec(&prefs).map_err(err)?);
+    Ok(())
+}
+
+/// Show one notification now, so the user can see they work (and so macOS asks for permission).
+#[tauri::command]
+fn notify_test(app: AppHandle) -> Result<(), String> {
+    app.notification().builder().title("Quirkus").body("Notifications are on. You'll hear about new announcements, grades, messages, and deadlines.").show().map_err(err)
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+enum Kind {
+    Announcement,
+    Message,
+    Grade,
+    Due,
+}
+
+impl NotifyPrefs {
+    fn wants(&self, k: Kind) -> bool {
+        self.enabled
+            && match k {
+                Kind::Announcement => self.announcements,
+                Kind::Message => self.messages,
+                Kind::Grade => self.grades,
+                Kind::Due => self.due,
+            }
+    }
+}
+
+fn stream_key(item: &Value) -> Option<(Kind, String, String, String)> {
     let id = item["id"].as_u64()?;
     let title = item["title"].as_str().unwrap_or("").to_string();
     let course = item["context_name"].as_str().or(item["course"]["name"].as_str()).unwrap_or("Quercus").to_string();
     match item["type"].as_str()? {
-        "Announcement" => Some((format!("a{id}"), format!("📢 {course}"), title)),
-        "Conversation" => Some((format!("c{id}:{}", item["updated_at"].as_str().unwrap_or("")), "✉️ New message".into(), title)),
+        "Announcement" => Some((Kind::Announcement, format!("a{id}"), format!("📢 {course}"), title)),
+        "Conversation" => Some((Kind::Message, format!("c{id}:{}", item["updated_at"].as_str().unwrap_or("")), "✉️ New message".into(), title)),
         "Submission" => {
             let grade = item["grade"].as_str().map(String::from).or(item["score"].as_f64().map(|s| s.to_string()))?;
             let name = item["assignment"]["name"].as_str().map(String::from).unwrap_or(title);
-            Some((format!("s{id}:{grade}"), format!("✅ Graded: {name}"), format!("{course}: {grade}")))
+            Some((Kind::Grade, format!("s{id}:{grade}"), format!("✅ Graded: {name}"), format!("{course}: {grade}")))
         }
         _ => None,
     }
 }
 
-/// Poll the activity stream and raise a desktop notification for anything new.
+/// A reminder for a planner item that's due within `hours` and still has something to do.
+/// The key includes the due date, so moving a deadline reminds again.
+fn due_key(item: &Value, now: chrono::DateTime<chrono::Utc>, hours: u32) -> Option<(Kind, String, String, String)> {
+    let kind = item["plannable_type"].as_str()?;
+    if kind == "announcement" || kind == "calendar_event" {
+        return None;
+    }
+    let date = item["plannable_date"].as_str()?;
+    let due = date.parse::<chrono::DateTime<chrono::Utc>>().ok()?;
+    let left = due - now;
+    if left < chrono::Duration::zero() || left > chrono::Duration::hours(hours as i64) {
+        return None;
+    }
+    let s = &item["submissions"];
+    let done = ["submitted", "graded", "excused"].iter().any(|k| s[*k].as_bool() == Some(true))
+        || item["planner_override"]["marked_complete"].as_bool() == Some(true);
+    if done {
+        return None;
+    }
+    let mins = left.num_minutes();
+    let when = if mins < 90 { format!("in {mins} min") } else { format!("in {} h", (mins + 30) / 60) };
+    let title = item["plannable"]["title"].as_str().unwrap_or("Untitled");
+    let course = item["context_name"].as_str().unwrap_or("Quercus");
+    Some((Kind::Due, format!("d{kind}{}:{date}", item["plannable_id"]), format!("⏰ Due {when}"), format!("{title} · {course}")))
+}
+
+/// Poll Quercus and raise a desktop notification for anything new, and for deadlines coming up.
 async fn watch(app: AppHandle) {
     let file = dirs(&app).config.join("seen.json");
     let mut seen: Option<HashSet<String>> =
@@ -409,12 +501,23 @@ async fn watch(app: AppHandle) {
         if !api.has_auth() {
             continue;
         }
+        let prefs = load_notify(&app);
         let Ok(stream) = api.refresh(&app, STREAM).await else { continue };
-        let items: Vec<_> = stream.as_array().into_iter().flatten().filter_map(stream_key).collect();
+        let mut items: Vec<_> = stream.as_array().into_iter().flatten().filter_map(stream_key).collect();
+        // Everything already in the stream on the first run is old news. Deadlines are not.
         let first_run = seen.is_none();
+        if prefs.wants(Kind::Due) {
+            let today = chrono::Local::now().date_naive();
+            let path = format!("/api/v1/planner/items?start_date={}&end_date={}", today, today + chrono::Duration::days(4));
+            if let Ok(planner) = api.fetch(&path).await {
+                let now = chrono::Utc::now();
+                items.extend(planner.as_array().into_iter().flatten().filter_map(|i| due_key(i, now, prefs.due_hours)));
+            }
+        }
         let set = seen.get_or_insert_with(HashSet::new);
-        for (key, title, body) in items {
-            if set.insert(key) && !first_run {
+        for (kind, key, title, body) in items {
+            // Things you've muted are still marked seen, so turning a type back on doesn't replay old items.
+            if set.insert(key) && prefs.wants(kind) && (!first_run || kind == Kind::Due) {
                 let _ = app.notification().builder().title(title).body(body).show();
             }
         }
@@ -427,6 +530,21 @@ async fn watch(app: AppHandle) {
     }
 }
 
+// ---------- Calendar ----------
+
+/// Write the timetable as an .ics file in ~/Downloads/Quercus and return its path.
+#[tauri::command]
+async fn save_calendar(app: AppHandle, ics: String) -> Result<String, String> {
+    if !ics.starts_with("BEGIN:VCALENDAR") || ics.len() > 2 << 20 {
+        return Err("not a calendar".into());
+    }
+    let dir = downloads_root(&app)?;
+    tokio::fs::create_dir_all(&dir).await.map_err(err)?;
+    let dest = dir.join("Quirkus timetable.ics");
+    tokio::fs::write(&dest, ics).await.map_err(err)?;
+    Ok(dest.to_string_lossy().into())
+}
+
 // ---------- App ----------
 
 /// QUERCUS_E2E_ROUTES="/,/c/101/a/3001,…": visit these screens one after another (every
@@ -437,7 +555,10 @@ fn e2e_tour(w: &WebviewWindow) {
     let every = std::env::var("QUERCUS_E2E_INTERVAL_MS").ok().and_then(|v| v.parse().ok()).unwrap_or(3000);
     let w = w.clone();
     std::thread::spawn(move || {
-        std::thread::sleep(Duration::from_secs(5));
+        // A fresh test profile would open on the welcome tour. Mark it done so the routes show.
+        std::thread::sleep(Duration::from_secs(2));
+        let _ = w.eval(r#"localStorage.setItem("prefs", JSON.stringify({ onboarded: true })); location.reload()"#);
+        std::thread::sleep(Duration::from_secs(3));
         for route in routes.split(',').filter(|r| r.starts_with('/')) {
             // JSON-encode so the route can only ever be a string literal.
             if let Ok(lit) = serde_json::to_string(route) {
@@ -531,6 +652,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             session, api_get, prefetch, mcp_info, clear_cache, set_token, logout, login_sso,
             open_url, download_file, file_bytes, prefetch_files, open_path, reveal_path,
+            notify_prefs, set_notify_prefs, notify_test, save_calendar,
             acorn::acorn_open, acorn::acorn_sync, acorn::acorn_data, acorn::acorn_capture, acorn::acorn_sync_done
         ])
         .run(tauri::generate_context!())
@@ -547,9 +669,40 @@ mod tests {
         assert!(f("application/pdf", "Lecture 1.pdf"));
         assert!(f("image/png", "diagram.png"));
         assert!(f("application/octet-stream", "starter.py"));
-        assert!(!f("application/vnd.openxmlformats-officedocument.presentationml.presentation", "slides.pptx"));
+        assert!(f("application/vnd.openxmlformats-officedocument.presentationml.presentation", "slides.pptx"));
+        assert!(f("application/octet-stream", "Lab 2.ipynb"));
+        assert!(!f("application/x-iwork-keynote-sffkey", "slides.key"));
         assert!(!f("video/mp4", "lecture.mp4"));
         assert!(!f("application/zip", "a1.zip"));
+    }
+
+    #[test]
+    fn reminds_only_about_unfinished_work_due_soon() {
+        let now = "2026-10-02T12:00:00Z".parse::<chrono::DateTime<chrono::Utc>>().unwrap();
+        let item = |date: &str, subs: Value| serde_json::json!({
+            "plannable_type": "assignment", "plannable_id": 7, "plannable_date": date, "context_name": "CSC263",
+            "plannable": { "title": "PS3" }, "submissions": subs
+        });
+        let todo = serde_json::json!({ "submitted": false, "graded": false });
+        let (kind, key, title, body) = due_key(&item("2026-10-03T03:59:00Z", todo.clone()), now, 24).unwrap();
+        assert_eq!((kind, key.as_str(), title.as_str(), body.as_str()), (Kind::Due, "dassignment7:2026-10-03T03:59:00Z", "⏰ Due in 16 h", "PS3 · CSC263"));
+        assert_eq!(due_key(&item("2026-10-02T12:45:00Z", todo.clone()), now, 24).unwrap().2, "⏰ Due in 45 min");
+        assert!(due_key(&item("2026-10-04T12:00:00Z", todo.clone()), now, 24).is_none(), "too far off");
+        assert!(due_key(&item("2026-10-02T11:00:00Z", todo.clone()), now, 24).is_none(), "already past");
+        assert!(due_key(&item("2026-10-03T03:59:00Z", serde_json::json!({ "submitted": true })), now, 24).is_none());
+        assert!(due_key(&item("2026-10-03T03:59:00Z", serde_json::json!({ "graded": true })), now, 24).is_none());
+        // Discussions and pages report `submissions: false`.
+        assert!(due_key(&item("2026-10-03T03:59:00Z", Value::Bool(false)), now, 24).is_some());
+    }
+
+    #[test]
+    fn muted_types_stay_quiet() {
+        let p = NotifyPrefs { grades: false, ..NotifyPrefs::default() };
+        assert!(p.wants(Kind::Announcement) && p.wants(Kind::Due) && !p.wants(Kind::Grade));
+        assert!(!NotifyPrefs { enabled: false, ..NotifyPrefs::default() }.wants(Kind::Announcement));
+        // An older or partial notify.json still loads, with the rest defaulted.
+        let partial: NotifyPrefs = serde_json::from_str(r#"{"messages":false}"#).unwrap();
+        assert!(partial.enabled && !partial.messages && partial.due_hours == 24);
     }
 
     #[test]

@@ -5,6 +5,8 @@
   import * as P from "../../lib/paths";
   import { ago, bytes } from "../../lib/format";
   import { fileIcon } from "../../lib/icons";
+  import { fileKind, looksLikeText } from "../../lib/filekind";
+  import type { Rich } from "../../lib/convert";
   import { saveAndOpen, openExternal } from "../../lib/links";
   import Top from "../../components/Top.svelte";
   import Eyebrow from "../../components/Eyebrow.svelte";
@@ -18,40 +20,47 @@
   const courseId = $derived(cid ? Number(cid) : undefined);
   const meta = query<FileItem>(() => P.fileMeta(id, cid), 300);
 
-  const TEXT = /\.(txt|md|csv|tsv|json|xml|ya?ml|py|java|c|h|cpp|hpp|cc|js|ts|jsx|tsx|r|rmd|sql|sh|m|hs|rkt|scm|ml|go|rs|tex|bib|log|ini|cfg|toml|html|css)$/i;
-  const kind = $derived.by(() => {
-    const f = meta.data;
-    if (!f) return null;
-    const t = f["content-type"] ?? "";
-    const n = f.display_name;
-    if (t === "application/pdf" || /\.pdf$/i.test(n)) return "pdf";
-    if (t.startsWith("image/")) return "image";
-    if (t.startsWith("video/")) return "video";
-    if (t.startsWith("audio/")) return "audio";
-    if (t.startsWith("text/") || t === "application/json" || TEXT.test(n)) return "text";
-    return "other";
-  });
+  const what = $derived(meta.data ? fileKind(meta.data.display_name, meta.data["content-type"] ?? "") : null);
+  /** Unknown types that turn out to be plain text are shown as text. */
+  let sniffed = $state(false);
+  const kind = $derived(what ? (sniffed ? "text" : what.kind) : null);
 
-  // Images, audio, video and text load as bytes through Rust (with your session), then display from a blob URL.
+  // Everything except PDFs loads as bytes through Rust (with your session), then is shown from memory.
+  const SNIFF_MAX = 2 << 20;
+  const TEXT_MAX = 1_000_000;
   let blobUrl = $state("");
   let text = $state("");
+  let rich = $state<Rich | null>(null);
   let loadError = $state("");
+  let busy = $state(false);
   let started = false;
+  const clip = (s: string) => (s.length > TEXT_MAX ? s.slice(0, TEXT_MAX) + "\n\n… (truncated; use Open in app to see the rest)" : s);
   $effect(() => {
-    const k = kind;
+    const w = what;
     const f = meta.data;
-    if (!f || !k || k === "pdf" || k === "other" || f.locked_for_user || started) return;
+    if (!f || !w || w.kind === "pdf" || f.locked_for_user || started) return;
+    if (w.kind === "other" && f.size > SNIFF_MAX) return;
     started = true;
+    busy = true;
     invoke<ArrayBuffer>("file_bytes", { fileId: Number(id), courseId: courseId ?? null })
-      .then((buf) => {
-        if (k === "text") {
-          const s = new TextDecoder().decode(buf);
-          text = s.length > 1_000_000 ? s.slice(0, 1_000_000) + "\n\n… (truncated; use Open in app to see the rest)" : s;
-        } else {
-          blobUrl = URL.createObjectURL(new Blob([buf], { type: f["content-type"] }));
-        }
+      .then(async (buf) => {
+        if (w.kind === "text") text = clip(new TextDecoder().decode(buf));
+        else if (w.kind === "other") {
+          const s = looksLikeText(buf);
+          if (s != null) {
+            text = clip(s);
+            sniffed = true;
+          }
+        } else if (w.kind === "rich") {
+          try {
+            rich = await (await import("../../lib/convert")).convert(w.format!, buf, f.display_name);
+          } catch {
+            loadError = "This file couldn't be read. It may be damaged or password-protected. Open in app to try your default program.";
+          }
+        } else blobUrl = URL.createObjectURL(new Blob([buf], { type: w.mime || f["content-type"] }));
       })
-      .catch((e) => (loadError = String(e) === "too-large" ? "This file is over 200 MB. Use Open in app instead." : `Couldn't load this file: ${e}`));
+      .catch((e) => (loadError = String(e) === "too-large" ? "This file is over 200 MB. Use Open in app instead." : `Couldn't load this file: ${e}`))
+      .finally(() => (busy = false));
   });
   onDestroy(() => blobUrl && URL.revokeObjectURL(blobUrl));
 
@@ -72,7 +81,7 @@
   <button onclick={() => openExternal(quercusUrl)}>Quercus<Icon name="external" size={13} /></button>
 </Top>
 
-<div class={kind === "pdf" ? "page wide" : "page"}>
+<div class={kind === "pdf" || rich?.kind === "sheets" ? "page wide" : "page"}>
   <State q={meta} rows={6}>
     {@const f = meta.data!}
     {#if cid}<Eyebrow {base} {section} />{/if}
@@ -89,6 +98,10 @@
         <div class="note"><Icon name="lock" />{#if f.lock_explanation}<Html html={f.lock_explanation} />{:else}<span>This file is locked.</span>{/if}</div>
       {:else if loadError}
         <div class="note bad"><Icon name="warn" /><span>{loadError}</span></div>
+        <div style="display:flex;gap:8px">
+          <button class="solid" onclick={() => saveAndOpen(Number(id), folder, courseId)}><Icon name="download" size={15} />Open in app</button>
+          <button class="ghost" onclick={() => openExternal(quercusUrl)}>Preview in Quercus<Icon name="external" size={13} /></button>
+        </div>
       {:else if kind === "pdf"}
         {#await import("../../components/PdfView.svelte")}
           <div class="loading"><div style="height:60vh"></div></div>
@@ -105,7 +118,13 @@
       {:else if kind === "audio"}
         {#if blobUrl}<audio src={blobUrl} controls></audio>{:else}<div class="loading"><div></div></div>{/if}
       {:else if kind === "text"}
-        {#if text}<pre class="text">{text}</pre>{:else}<div class="loading"><div></div><div></div><div></div></div>{/if}
+        {#if text}<pre class="text">{text}</pre>{:else if busy}<div class="loading"><div></div><div></div><div></div></div>{:else}<p class="empty">This file is empty.</p>{/if}
+      {:else if kind === "rich"}
+        {#if rich}
+          {#await import("../../components/RichView.svelte") then m}<m.default {rich} />{/await}
+        {:else}<div class="loading"><div></div><div></div><div></div></div>{/if}
+      {:else if busy}
+        <div class="loading"><div></div><div></div><div></div></div>
       {:else}
         <div class="note">
           <Icon name={fileIcon(f.display_name, f["content-type"])} />
