@@ -627,6 +627,13 @@ fn fit_to_screen(w: &WebviewWindow) {
     }
 }
 
+/// What the qc:// image proxy may fetch: a Quercus path that isn't a data endpoint. Images, files,
+/// previews and equation images qualify; anything under /api/ (or a traversal) does not.
+fn qc_allowed(path: &str) -> bool {
+    let p = path.split(['?', '#']).next().unwrap_or("");
+    p.starts_with('/') && !p.contains("..") && !p.to_ascii_lowercase().starts_with("/api/")
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
@@ -640,6 +647,11 @@ pub fn run() {
             tauri::async_runtime::spawn(async move {
                 let api = app.state::<Arc<Canvas>>().inner().clone();
                 let out = async {
+                    // Only ever proxy embedded assets. The API (grades, messages, …) must not be
+                    // reachable this way, so a script that slips past the CSP can't read the account.
+                    if !qc_allowed(&path) {
+                        return None;
+                    }
                     let res = api.raw(&format!("{}{path}", api.base())).await.ok()?;
                     let ct = res.headers().get(CONTENT_TYPE).cloned();
                     let body = res.bytes().await.ok()?;
@@ -744,6 +756,17 @@ mod tests {
         assert!(header.contains("canvas_session=SECRET") && header.contains("_csrf_token=TOK") && header.contains("log_session_id=L"));
         assert!(!header.contains("_ga") && !header.contains("_gid") && !header.contains("_gat") && !header.contains("__utm"));
         assert!(is_tracking_cookie("_GA_ABC") && !is_tracking_cookie("canvas_session"));
+    }
+
+    #[test]
+    fn qc_proxy_blocks_the_api_and_traversal() {
+        assert!(qc_allowed("/courses/1/files/5/preview"));
+        assert!(qc_allowed("/files/5/download?verifier=x"));
+        assert!(qc_allowed("/equation_images/abc"));
+        assert!(!qc_allowed("/api/v1/users/self"));
+        assert!(!qc_allowed("/API/v1/courses"));
+        assert!(!qc_allowed("/courses/1/files/../../api/v1/users/self"));
+        assert!(!qc_allowed("api/v1/x"));
     }
 
     #[test]
