@@ -51,15 +51,9 @@ jobs:
       - uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # macOS signing + notarisation. Empty until the repo has an Apple Developer ID in secrets;
-          # tauri-action skips signing when the identity is blank, so builds still work unsigned.
-          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
-          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
-          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
-          APPLE_ID: ${{ secrets.APPLE_ID }}
-          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
-          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
-          KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+          # To sign + notarise macOS builds, add the APPLE_* signing env here once the Apple Developer ID
+          # is in repo secrets (see README → Releases). Leaving the keys unset keeps the build unsigned;
+          # setting them to empty strings makes tauri try to sign and fail, so don't add blank ones.
         with:
           tagName: ${{ github.ref_name }}
           releaseName: Quirkus ${{ github.ref_name }}
