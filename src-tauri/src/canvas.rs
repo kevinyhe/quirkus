@@ -43,6 +43,9 @@ pub struct Canvas {
     limit: Semaphore,
     cache_dir: PathBuf,
     auth_file: PathBuf,
+    // Prefer the OS keychain for the session; fall back to the 0600 file when there's no backend
+    // (headless Linux, WSL) or in tests. Off for test instances so they never touch the real keychain.
+    keychain: bool,
 }
 
 #[derive(Debug)]
@@ -140,19 +143,23 @@ fn is_signed_out(body: &str) -> bool {
 }
 
 impl Canvas {
+    /// The real app: the session lives in the OS keychain when one is available.
     pub fn new(cache_dir: PathBuf, config_dir: PathBuf) -> Self {
-        Self::with_base(BASE, cache_dir, config_dir)
+        Self::build(BASE, cache_dir, config_dir, true)
     }
 
+    /// Tests and the QUERCUS_BASE_URL override: file only, never the keychain.
     pub fn with_base(base: &str, cache_dir: PathBuf, config_dir: PathBuf) -> Self {
+        Self::build(base, cache_dir, config_dir, false)
+    }
+
+    fn build(base: &str, cache_dir: PathBuf, config_dir: PathBuf, keychain: bool) -> Self {
         let _ = std::fs::create_dir_all(&cache_dir);
         let _ = std::fs::create_dir_all(&config_dir);
         let auth_file = config_dir.join("auth.json");
-        let session = std::fs::read(&auth_file)
-            .ok()
-            .and_then(|b| serde_json::from_slice::<Auth>(&b).ok())
-            .map(|a| build_session(&a));
-        Canvas {
+        let raw = read_secret(keychain, &auth_file);
+        let session = raw.as_deref().and_then(|b| serde_json::from_slice::<Auth>(b).ok()).map(|a| build_session(&a));
+        let c = Canvas {
             base: base.trim_end_matches('/').to_string(),
             session: RwLock::new(session),
             saved_cookies: Mutex::new(String::new()),
@@ -161,7 +168,15 @@ impl Canvas {
             limit: Semaphore::new(6),
             cache_dir,
             auth_file,
+            keychain,
+        };
+        // Migrate an existing plaintext file into the keychain on first run with a backend.
+        if keychain && raw.is_some() && std::fs::metadata(&c.auth_file).is_ok() {
+            if let Some(b) = raw {
+                c.write_secret(&b);
+            }
         }
+        c
     }
 
     /// The Canvas server this client talks to (q.utoronto.ca unless overridden for tests).
@@ -181,14 +196,33 @@ impl Canvas {
         match &auth {
             Some(a) => {
                 if let Ok(b) = serde_json::to_vec(a) {
-                    write_private(&self.auth_file, &b);
+                    self.write_secret(&b);
                 }
             }
-            None => {
-                let _ = std::fs::remove_file(&self.auth_file);
-            }
+            None => self.clear_secret(),
         }
         *self.session.write().unwrap() = auth.as_ref().map(build_session);
+    }
+
+    /// Save the session: keychain when enabled and reachable, otherwise the 0600 file. A successful
+    /// keychain write removes the plaintext file so the secret isn't left in two places.
+    fn write_secret(&self, bytes: &[u8]) {
+        if self.keychain {
+            if let Ok(s) = std::str::from_utf8(bytes) {
+                if keyring_set(s).is_ok() {
+                    let _ = std::fs::remove_file(&self.auth_file);
+                    return;
+                }
+            }
+        }
+        write_private(&self.auth_file, bytes);
+    }
+
+    fn clear_secret(&self) {
+        if self.keychain {
+            keyring_delete();
+        }
+        let _ = std::fs::remove_file(&self.auth_file);
     }
 
     /// Canvas rotates its session cookie on responses. Save the jar's current
@@ -205,7 +239,7 @@ impl Canvas {
         let mut saved = self.saved_cookies.lock().unwrap();
         if *saved != h {
             if let Ok(b) = serde_json::to_vec(&Auth::Cookie(h.clone())) {
-                write_private(&self.auth_file, &b);
+                self.write_secret(&b);
             }
             *saved = h;
         }
@@ -380,6 +414,38 @@ impl Canvas {
     }
 }
 
+// One entry per machine user. The app and `quirkus mcp` share it, so the server reads what the app saved.
+const KEYRING_SERVICE: &str = "io.github.kevinyhe.quirkus";
+const KEYRING_USER: &str = "quercus-session";
+
+fn keyring_entry() -> Option<keyring::Entry> {
+    keyring::Entry::new(KEYRING_SERVICE, KEYRING_USER).ok()
+}
+
+fn keyring_set(value: &str) -> Result<(), ()> {
+    keyring_entry().ok_or(())?.set_password(value).map_err(|_| ())
+}
+
+fn keyring_get() -> Option<Vec<u8>> {
+    keyring_entry()?.get_password().ok().map(String::into_bytes)
+}
+
+fn keyring_delete() {
+    if let Some(e) = keyring_entry() {
+        let _ = e.delete_credential();
+    }
+}
+
+/// Read the saved session: keychain first when enabled, then the file. Returns the raw JSON bytes.
+fn read_secret(keychain: bool, file: &std::path::Path) -> Option<Vec<u8>> {
+    if keychain {
+        if let Some(b) = keyring_get() {
+            return Some(b);
+        }
+    }
+    std::fs::read(file).ok()
+}
+
 pub fn write_private(path: &std::path::Path, bytes: &[u8]) {
     let tmp = path.with_extension("tmp");
     if std::fs::write(&tmp, bytes).is_err() {
@@ -482,6 +548,21 @@ mod tests {
             "<https://q.utoronto.ca/api/v1/x?page=1>; rel=\"current\",<https://q.utoronto.ca/api/v1/x?page=2>; rel=\"next\",<https://q.utoronto.ca/api/v1/x?page=9>; rel=\"last\"",
         ));
         assert_eq!(next_link(&h).as_deref(), Some("https://q.utoronto.ca/api/v1/x?page=2"));
+    }
+
+    #[test]
+    fn session_round_trips_through_the_file_when_the_keychain_is_off() {
+        let dir = std::env::temp_dir().join(format!("qd-secret-{}", key_hash("sr")));
+        let _ = std::fs::remove_dir_all(&dir);
+        let c = Canvas::with_base("http://x", dir.join("cache"), dir.join("cfg"));
+        assert!(!c.has_auth());
+        c.set_auth(Some(Auth::Token("tok".into())));
+        assert!(c.has_auth());
+        // A fresh instance over the same dir re-reads it from disk.
+        assert!(Canvas::with_base("http://x", dir.join("cache"), dir.join("cfg")).has_auth());
+        c.set_auth(None);
+        assert!(!c.has_auth() && std::fs::metadata(dir.join("cfg").join("auth.json")).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

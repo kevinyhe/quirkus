@@ -11,14 +11,14 @@ This is a maintainer's defensive document. It maps the data flows, names the tru
 boundaries, and ranks the takeover paths so fixes can be prioritised. It is not a test plan
 against UofT systems.
 
-Last reviewed against `v0.1.1`. F2, F3, F4 and F7 below are **fixed**; F1 (keychain), F5 and F6 remain.
+Last reviewed against `v0.1.2`. F1–F5 and F7 are **fixed**; F6 is partly done (supply-chain hardened; signing awaits certificates).
 
 ## The assets
 
 | Asset | Where it lives | Why it's account takeover (ATO) if leaked |
 |---|---|---|
-| **Quercus session cookies** (`canvas_session`, `_csrf_token`, …) | `auth.json`, kind `cookie` | Replay in any browser → full Quercus web session as the user. Not read-only. |
-| **Quercus access token** (if the user chose that) | `auth.json`, kind `token` | Bearer credential. Same as above, and longer-lived. |
+| **Quercus session cookies** (`canvas_session`, `_csrf_token`, …) | OS keychain, or `auth.json` (0600) as fallback | Replay in any browser → full Quercus web session as the user. Not read-only. |
+| **Quercus access token** (if the user chose that) | OS keychain, or `auth.json` (0600) as fallback | Bearer credential. Same as above, and longer-lived. |
 | **UofT SSO cookies** | the webview's own cookie store (`<data>/cookies`) | Replay → sign in to Quercus *and ACORN, Degree Explorer, and everything else behind UTORid SSO*. Worst case. |
 | **Cached Quercus data** | `<cache>/api/*.json`, `<cache>/files/*`, `<data>/acorn/*.json` | Not ATO on its own: grades, messages, timetable. Local info disclosure. |
 
@@ -201,15 +201,15 @@ if `$HOME` is open. Fix: write cache with `0600` (reuse `write_private`). Tracke
 
 ## Hardening backlog (small, local, no third-party testing)
 
-- **F1** `auth.json`: move to OS keychain; meanwhile enforce `0600`/ACL on Windows. *(A1)* — **open** (keychain). On Linux/macOS the file is already `0600`; the Windows ACL and keychain remain.
+- **F1** ✅ the session lives in the OS keychain (Keychain / Credential Manager / Secret Service) when one is available, migrating off the plaintext file; it falls back to the `0600` file when there's no backend. The app and `quirkus mcp` share one entry. *(A1)*
 - **F2** ✅ `download_file`/`open_path`: risky types (executables, scripts, installers, macro Office, no-extension) are saved but never auto-opened — the user gets a notice and reveal-in-folder; Windows gets a Mark-of-the-Web ADS so SmartScreen/Office screen it. *(A2)*
 - **F3** ✅ cache API responses written `0600` via `write_private`. *(A8)*
 - **F4** ✅ tracking cookies (`_ga*`, `_gid`, `_gat*`, `__utm*`, `_fbp`, `_hj*`) stripped in `capture_session` before anything is saved. *(A1 blast radius, privacy)*
-- **F5** sanitiser regression test for each new rich viewer; evaluate narrowing `qc://` to preview/file paths. *(A4)* — **open**
-- **F6** code-sign + notarise releases (issue #3); pin CI actions by commit SHA; publish checksums. *(A3)* — **open**
+- **F5** ✅ `qc://` no longer proxies `/api/` or traversal paths — only embedded assets; a sanitiser regression test covers the Word, Markdown and notebook-HTML sinks. *(A4)*
+- **F6** ◐ CI actions pinned by commit SHA and a `SHA256SUMS.txt` is published per release; macOS signing/notarisation is wired and activates once certificates are in secrets; Windows Authenticode still needs a certificate. *(A3)*
 - **F7** ✅ MCP: the server's `initialize` instructions now tell clients that announcements, inbox, page and file text are untrusted data, not instructions. *(A6)*
 
-F2–F4 and F7 landed together; F1 (keychain/Windows ACL), F5 and F6 are tracked as issues.
+F6's remaining piece (signing) needs certificates the maintainer must obtain; everything else is done.
 
 F1–F4 are a few lines each in `canvas.rs`/`lib.rs` and don't touch any UofT system. F6 is
 process. Nothing here requires probing Quercus — it's all defence of the local app.

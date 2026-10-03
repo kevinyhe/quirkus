@@ -65,13 +65,25 @@ Tools (all read-only): `list_courses`, `upcoming_deadlines`, `course_assignments
 `academic_history`. Ask things like "what's due this week?", "summarize the PS3 instructions", or
 "when's my next class?".
 
+## Verifying downloads
+
+Each release has a `SHA256SUMS.txt`. Check a file before running it:
+
+```sh
+sha256sum -c SHA256SUMS.txt --ignore-missing
+```
+
+Builds aren't code-signed yet (see below), so on Windows and macOS the OS will warn. The checksum is
+how you confirm the file matches what CI built.
+
 ## Privacy and security
 
 - **Your data stays on your computer.** The app talks only to `q.utoronto.ca`, `acorn.utoronto.ca`,
   `degreeexplorer.utoronto.ca`, and the UofT sign-in pages. No analytics, no servers of ours.
 - **Sign-in**: the normal UofT page opens in a separate window. Your password goes only to UofT. The app keeps the
-  resulting Quercus session (or an access token, if you choose that) in its config folder, readable only by you
-  (`0600` on Linux/macOS).
+  resulting Quercus session (or an access token, if you choose that) in the **OS keychain** (Keychain, Credential
+  Manager, or Secret Service) when one is available, and falls back to a `0600` file in its config folder
+  otherwise. `quirkus mcp` reads the same place.
 - **ACORN** has no public API. After you sign in, the app opens ACORN and Degree Explorer in hidden windows, where
   UofT sign-in completes on its own, and runs a fixed script that makes the same read-only requests ACORN's own
   pages make ([route list](https://github.com/SleepyPandas/unofficial-UofT-api-registry)). Those windows can only
@@ -121,7 +133,13 @@ the MCP end-to-end test on Linux, plus the Rust tests on Windows and macOS.
 ### Releases
 
 Push a tag like `v0.1.0`. `.github/workflows/release.yml` builds Windows, macOS, and Linux and attaches everything,
-including the portable `Quirkus.exe`, to a draft GitHub release.
+including the portable `Quirkus.exe` and a `SHA256SUMS.txt`, to a draft GitHub release. Every action is pinned to a
+commit SHA.
+
+**Code signing** is wired but off until the certificates are in repo secrets. macOS: add `APPLE_CERTIFICATE`,
+`APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`,
+`KEYCHAIN_PASSWORD`, and the build signs and notarises itself. Windows signing (Authenticode) still needs a
+certificate and a signing step; until then the installer is unsigned and SmartScreen warns.
 
 ### Layout
 

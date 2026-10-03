@@ -72,6 +72,7 @@ const IPYNB = Buffer.from(JSON.stringify({ metadata: { kernelspec: { language: "
   { cell_type: "markdown", source: ["# Lab 2\n", "Build a **min-heap**."] },
   { cell_type: "code", source: ["import heapq\n", "print(heapq.nsmallest(2, [5, 1, 4]))"], outputs: [{ output_type: "stream", name: "stdout", text: ["[1, 4]\n"] }] },
   { cell_type: "code", source: "plot()", outputs: [{ output_type: "display_data", data: { "image/png": PNG.toString("base64") } }] },
+  { cell_type: "code", source: "df", outputs: [{ output_type: "execute_result", data: { "text/html": "<table><tr><td>rows=42</td></tr></table><script>window.pwned2 = 1</script>" } }] },
 ] }));
 const BYTES = {
   pdf: pdf(["Lecture 1: Introduction", "Asymptotic notation", "Heaps"]), png: PNG, text: TEXT, docx: DOCX, pptx: PPTX, xlsx: XLSXB,
@@ -548,6 +549,8 @@ for (const scheme of ["light", "dark"]) {
   await see("/c/101/f/5007", ".sheet td", ["TUT0101", "BA 1200, north", "SS 2105"]);
   await see("/c/101/f/5008", ".nb-cell", ["Lab 2", "min-heap", "import heapq", "[1, 4]"]);
   if ((await page.locator("img.nb-out").count()) !== 1) results.push("ipynb: image output isn't shown");
+  if (!(await page.locator("main .viewer").innerText()).includes("rows=42")) results.push("ipynb: html output isn't shown");
+  if (await page.evaluate(() => "pwned2" in window)) results.push("ipynb: a script in an html output ran");
   await see("/c/101/f/5009", ".doc .prose h1", ["Starter code", "python ps3_starter.py", "heaps"]);
   if (await page.evaluate(() => "pwned" in window)) results.push("markdown: a script in the file ran");
   await see("/c/101/f/5010", ".viewer table.grid td", ["3 files", "ps3/starter.py", "ps3/tests/test_heap.py"]);
